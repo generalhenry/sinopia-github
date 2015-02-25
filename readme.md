@@ -18,5 +18,5 @@ auth:
 packages:
   'orgprefix-*':
     allow_access: $authenticated
-    allow_publish: Team One, Team Five # these are the Github team names within your organization
+    allow_publish: Team One, Team Five # these are the Github team names within your org
 ```

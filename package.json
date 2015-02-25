@@ -1,8 +1,19 @@
 {
   "name": "sinopia-github",
   "version": "0.1.0",
+  "description": "Github auth plugin for Sinopia, using Organization and Teams",
   "dependencies": {
     "async": "^0.9.0",
     "request": "^2.53.0"
-  }
+  },
+  "author": {
+    "name": "Matt Fysh",
+    "email": "mattfysh@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mattfysh/sinopia-github"
+  },
+  "license": "MIT",
+  "keywords": ["sinopia", "github", "npm", "auth", "plugin"]
 }

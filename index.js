@@ -50,7 +50,7 @@ Auth.prototype.authenticate = function(user, pass, done) {
 		if (err) return done(err);
 
 		var groups = teams.reduce(function(groups, team) {
-			if (team.organization.login === org) groups.push(team);
+			if (team.organization.login === org) groups.push(team.name);
 			return groups;
 		}, []);
 
@@ -100,7 +100,7 @@ Auth.prototype.listTeams = function(user, token, done) {
 
 		if (res.statusCode === 304) { teams = cache.teams; }
 		else if (cache.etag) { logger.warn({user: user}, 'github teams resource modified for @{user} since cache'); }
-		
+
 		cache.teams = teams;
 		cache.expires = Date.now() + ttl;
 		cache.etag = res.headers.etag;
