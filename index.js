@@ -1,16 +1,14 @@
 /**
  * TODO err - user deletes Sinopia token
- * TODO err - informative when user cannot access or publish
- * TODO err - connection issues
  */
 var request = require('request');
 var async = require('async');
+var Error = require('http-errors');
+
 var pkg = require('./package');
 
 var userCache = {};
 var logger;
-
-var reqLogMsg = 'user: @{user}, req: @{method} @{url}';
 
 function github(user, path, opts, cb) {
 	var url = 'https://api.github.com' + path;
@@ -21,7 +19,7 @@ function github(user, path, opts, cb) {
 		level: 35, // http
 		url: url,
 		method: opts.method || 'GET'
-	}, reqLogMsg);
+	}, 'user: @{user}, req: @{method} @{url}');
 	return request(url, opts, cb);
 }
 
@@ -49,6 +47,14 @@ Auth.prototype.authenticate = function(user, pass, done) {
 	], function(err, teams) {
 		if (err) return done(err);
 
+		if (!Array.isArray(teams)) {
+			logger.warn({
+				user: user,
+				err: teams
+			}, 'Failed to authenticate github user: @{user}, err: @{teams}');
+			return done(null, false);
+		}
+
 		var groups = teams.reduce(function(groups, team) {
 			if (team.organization.login === org) groups.push(team.name);
 			return groups;
@@ -60,6 +66,14 @@ Auth.prototype.authenticate = function(user, pass, done) {
 		} else {
 			done(null, false);
 		}
+	});
+};
+
+Auth.prototype.add_user = function(user, pass, done) {
+	if (!userCache[user]) userCache[user] = {};
+	this.getToken(user, pass, function(err) {
+		if (err) return done(err);
+		done(null, true);
 	});
 };
 
@@ -76,11 +90,12 @@ Auth.prototype.getToken = function(user, pass, done) {
 			client_secret: this._clientSecret,
 			scopes: ['read:org']
 		}
-	}, function(err, res, res) {
+	}, function(err, res, auth) {
 		if (err) return done(err);
-		cache.token = res.token;
-		done(null, res.token);
-	}).auth(user, pass);
+		if (res.statusCode === 401) return done(Error[403]('bad github username/password, access denied'));
+		cache.token = auth.token;
+		done(null, cache.token);
+	});
 };
 
 Auth.prototype.listTeams = function(user, token, done) {
