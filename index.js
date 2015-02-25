@@ -47,14 +47,6 @@ Auth.prototype.authenticate = function(user, pass, done) {
 	], function(err, teams) {
 		if (err) return done(err);
 
-		if (!Array.isArray(teams)) {
-			logger.warn({
-				user: user,
-				err: teams
-			}, 'Failed to authenticate github user: @{user}, err: @{teams}');
-			return done(null, false);
-		}
-
 		var groups = teams.reduce(function(groups, team) {
 			if (team.organization.login === org) groups.push(team.name);
 			return groups;
@@ -92,7 +84,11 @@ Auth.prototype.getToken = function(user, pass, done) {
 		}
 	}, function(err, res, auth) {
 		if (err) return done(err);
-		if (res.statusCode === 401) return done(Error[403]('bad github username/password, access denied'));
+
+		if (res.statusCode === 401) {
+			return done(Error[403]('bad github username/password, access denied'));
+		}
+
 		cache.token = auth.token;
 		done(null, cache.token);
 	});
@@ -113,8 +109,15 @@ Auth.prototype.listTeams = function(user, token, done) {
 	}, function(err, res, teams) {
 		if (err) return done(err);
 
-		if (res.statusCode === 304) { teams = cache.teams; }
-		else if (cache.etag) { logger.warn({user: user}, 'github teams resource modified for @{user} since cache'); }
+		if (res.statusCode === 401) {
+			return done(Error[403]('bad github access token, access denied, last 4 chars: ' + token.slice(-4)));
+		}
+
+		if (res.statusCode === 304) {
+			teams = cache.teams;
+		} else if (cache.etag) {
+			logger.warn({user: user}, 'github teams resource modified for @{user} since cache');
+		}
 
 		cache.teams = teams;
 		cache.expires = Date.now() + ttl;
