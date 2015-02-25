@@ -1,6 +1,6 @@
 {
   "name": "sinopia-github",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Github auth plugin for Sinopia, using Organization and Teams",
   "dependencies": {
     "async": "^0.9.0",
