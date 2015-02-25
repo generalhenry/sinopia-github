@@ -14,12 +14,15 @@ function github(user, path, opts, cb) {
 	var url = 'https://api.github.com' + path;
 	if (!opts.headers) opts.headers = {};
 	opts.headers['User-Agent'] = 'sinopia-github v' + pkg.version;
+	opts.timeout = 20000;
+
 	logger.warn({
 		user: user,
 		level: 35, // http
 		url: url,
 		method: opts.method || 'GET'
 	}, 'user: @{user}, req: @{method} @{url}');
+
 	return request(url, opts, cb);
 }
 
