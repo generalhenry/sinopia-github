@@ -3,7 +3,6 @@
  */
 var crypto = require('crypto');
 var GitHubApi = require('github');
-var userCache = Object.create(null);
 
 
 function Auth(config, stuff) {
@@ -17,10 +16,11 @@ function Auth(config, stuff) {
 	this._ttl = config.ttl * 1000; // sec -> ms
 	
 	this._logger = stuff.logger;
+	this._userCache = Object.create(null);
 }
 
 Auth.prototype.authenticate = function(username, password, done) {
-	getTeams(username, password, done);
+	this._getTeams(username, password, done);
 };
 
 Auth.prototype.add_user = function(username, password, done) {
@@ -32,24 +32,24 @@ Auth.prototype.add_user = function(username, password, done) {
 	});
 };
 
-function getCache (username, password) {
+Auth.prototype._getCache = function (username, password) {
 	var shasum = crypto.createHash('sha1');
 	shasum.update(JSON.stringify({
 		username: username,
 		password: password
 	}));
 	var token = shasum.digest('hex');
-	if (!userCache[token]) {
-		userCache[token] = Object.create(null);
+	if (!this._userCache[token]) {
+		this._userCache[token] = Object.create(null);
 	}
-	return userCache[token]; 
+	return this._userCache[token]; 
 }
 
-function getTeams (username, password, done) {
+Auth.prototype._getTeams = function (username, password, done) {
 	var org = this._org;
 	var logger = this._logger;
 	var ttl = this._ttl;
-	var cache = getCache(username, password);
+	var cache = this._getCache(username, password);
 	if (cache.groups && Date.now() < cache.expires) {
 		return done(null, cache.groups);
 	}
