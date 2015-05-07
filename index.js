@@ -24,7 +24,7 @@ Auth.prototype.authenticate = function(username, password, done) {
 };
 
 Auth.prototype.add_user = function(username, password, done) {
-	getTeams(username, password, function (err) {
+	this._getTeams(username, password, function (err) {
 		if (err) {
 			return done(err);
 		}
