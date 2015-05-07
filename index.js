@@ -20,13 +20,41 @@ function Auth(config, stuff) {
 }
 
 Auth.prototype.authenticate = function(username, password, done) {
-	this._getTeams(username, password, done);
+	var org = this._org;
+	var logger = this._logger;
+	var ttl = this._ttl;
+	var cache = this._getCache(username, password);
+	if (cache.groups && Date.now() < cache.expires) {
+		return done(null, cache.groups);
+	}
+	this._getTeams(username, password, function (err, teams) {
+		if (err) {
+			return done(err, false);
+		}
+		var groups;
+		cache.expires = Date.now() + ttl;
+		cache.etag = teams.meta.etag;
+		if (teams.meta.status === '304 Not Modified') {
+			return done(null, cache.groups);
+		}
+		groups = cache.groups = teams.filter(function(team) {
+			return team.organization.login === org;
+		}).map(function(team) {
+			return team.name;
+		});
+
+		if (groups.length) {
+			groups.unshift(username);
+			return done(null, groups);
+		}
+		done(null, false);
+	});
 };
 
 Auth.prototype.add_user = function(username, password, done) {
 	this._getTeams(username, password, function (err) {
 		if (err) {
-			return done(err);
+			return done(err, false);
 		}
 		done(null, true);
 	});
@@ -46,13 +74,7 @@ Auth.prototype._getCache = function (username, password) {
 }
 
 Auth.prototype._getTeams = function (username, password, done) {
-	var org = this._org;
-	var logger = this._logger;
-	var ttl = this._ttl;
 	var cache = this._getCache(username, password);
-	if (cache.groups && Date.now() < cache.expires) {
-		return done(null, cache.groups);
-	}
 	if (!cache.github) {
 		cache.github = new GitHubApi({
 			version: "3.0.0"
@@ -75,23 +97,8 @@ Auth.prototype._getTeams = function (username, password, done) {
 			}, 'GITHUB error @{err} for user @{username}');
 			return done(err, false);
 		}
-		var groups;
-		cache.expires = Date.now() + ttl;
-		cache.etag = teams.meta.etag;
-		if (teams.meta.status === '304 Not Modified') {
-			return done(null, cache.groups);
-		}
-		groups = cache.groups = teams.filter(function(team) {
-			return team.organization.login === org;
-		}).map(function(team) {
-			return team.name;
-		});
-
-		if (groups.length) {
-			groups.unshift(username);
-			return done(null, groups);
-		}
-		done(null, false);
+		console.log(1, teams);
+		return done(null, teams);
 	});
 }
 
