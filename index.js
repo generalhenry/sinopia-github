@@ -4,45 +4,27 @@
 var crypto = require('crypto');
 var GitHubApi = require('github');
 
-
 function Auth(config, stuff) {
 	if (!(this instanceof Auth)) {
 		return new Auth(config, stuff);
 	}
-
 	this._org = config.org;
-	this._clientID = config.client_id;
-	this._clientSecret = config.client_secret;
 	this._ttl = config.ttl * 1000; // sec -> ms
-	
 	this._logger = stuff.logger;
 	this._userCache = Object.create(null);
 }
 
 Auth.prototype.authenticate = function(username, password, done) {
 	var org = this._org;
-	var logger = this._logger;
-	var ttl = this._ttl;
-	var cache = this._getCache(username, password);
-	if (cache.groups && Date.now() < cache.expires) {
-		return done(null, cache.groups);
-	}
 	this._getTeams(username, password, function (err, teams) {
 		if (err) {
 			return done(err, false);
 		}
-		var groups;
-		cache.expires = Date.now() + ttl;
-		cache.etag = teams.meta.etag;
-		if (teams.meta.status === '304 Not Modified') {
-			return done(null, cache.groups);
-		}
-		groups = cache.groups = teams.filter(function(team) {
+		groups = teams.filter(function(team) {
 			return team.organization.login === org;
 		}).map(function(team) {
 			return team.name;
 		});
-
 		if (groups.length) {
 			groups.unshift(username);
 			return done(null, groups);
@@ -74,7 +56,12 @@ Auth.prototype._getCache = function (username, password) {
 }
 
 Auth.prototype._getTeams = function (username, password, done) {
+	var logger = this._logger;
+	var ttl = this._ttl;
 	var cache = this._getCache(username, password);
+	if (cache.teams && Date.now() < cache.expires) {
+		return done(null, cache.teams);
+	}
 	if (!cache.github) {
 		cache.github = new GitHubApi({
 			version: "3.0.0"
@@ -97,7 +84,13 @@ Auth.prototype._getTeams = function (username, password, done) {
 			}, 'GITHUB error @{err} for user @{username}');
 			return done(err, false);
 		}
-		console.log(1, teams);
+		var groups;
+		cache.expires = Date.now() + ttl;
+		cache.etag = teams.meta.etag;
+		if (teams.meta.status === '304 Not Modified') {
+			return done(null, cache.teams);
+		}
+		cache.teams = teams;
 		return done(null, teams);
 	});
 }
