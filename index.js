@@ -1,7 +1,8 @@
 /**
  * TODO err - user deletes Sinopia token
  */
-var GitHubApi = require("github");
+var crypto = require('crypto');
+var GitHubApi = require('github');
 var userCache = Object.create(null);
 
 
@@ -19,79 +20,79 @@ function Auth(config, stuff) {
 }
 
 Auth.prototype.authenticate = function(username, password, done) {
-	var org = this._org;
-	var logger = this._logger;
-	var ttl = this._ttl;
-	var cache = getCache(username, password);
-
-	if (cache.groups && Date.now() < cache.expires) {
-		return done(null, cache.groups);
-	} else {
-		getTeams(username, password, function (err, teams) {
-			if (err) {
-				logger.warn({
-					user: username,
-					err: err,
-				}, 'GITHUB error @{err}');
-				return done(null, false);
-			} else {
-				var groups;
-				cache.expires = Date.now() + ttl;
-				cache.etag = teams.meta.etag;
-				if (teams.meta.status === '304 Not Modified') {
-					done(null, cache.groups);
-				} else {
-					groups = cache.groups = teams.reduce(function(groups, team) {
-						return team.organization.login === org ? groups.concat(team.name) : groups;
-					}, []);
-
-					if (groups.length) {
-						groups.unshift(username);
-						done(null, groups);
-					} else {
-						done(null, false);
-					}
-				}
-			}
-		});
-	}
+	getTeams(username, password, done);
 };
 
 Auth.prototype.add_user = function(username, password, done) {
 	getTeams(username, password, function (err) {
 		if (err) {
-			done(err);
-		} else {
-			done(null, true);
+			return done(err);
 		}
+		done(null, true);
 	});
 };
 
 function getCache (username, password) {
-	var token = JSON.stringify({
+	var shasum = crypto.createHash('sha1');
+	shasum.update(JSON.stringify({
 		username: username,
 		password: password
-	});
-	return userCache[token] = userCache[token] || {}; 
+	}));
+	var token = shasum.digest('hex');
+	if (!userCache[token]) {
+		userCache[token] = Object.create(null);
+	}
+	return userCache[token]; 
 }
 
 function getTeams (username, password, done) {
+	var org = this._org;
+	var logger = this._logger;
+	var ttl = this._ttl;
 	var cache = getCache(username, password);
-	var github = cache.github = cache.github || new GitHubApi({
-		version: "3.0.0"
-	});
-
-	github.authenticate({
-		type: "basic",
-		username: username,
-		password: password
-	});
-
-	github.user.getTeams({
+	if (cache.groups && Date.now() < cache.expires) {
+		return done(null, cache.groups);
+	}
+	if (!cache.github) {
+		cache.github = new GitHubApi({
+			version: "3.0.0"
+		});
+		cache.github.authenticate({
+			type: "basic",
+			username: username,
+			password: password
+		});
+	}
+	cache.github.user.getTeams({
 		headers: {
 			'If-None-Match': cache.etag
 		}
-	}, done);
+	}, function (err, teams) {
+		if (err) {
+			logger.warn({
+				username: username,
+				err: err,
+			}, 'GITHUB error @{err} for user @{username}');
+			return done(err, false);
+		}
+		var groups;
+		cache.expires = Date.now() + ttl;
+		cache.etag = teams.meta.etag;
+		if (teams.meta.status === '304 Not Modified') {
+			return done(null, cache.groups);
+		}
+		groups = cache.groups = teams.filter(function(team) {
+			return team.organization.login === org;
+		}).map(function(team) {
+			return team.name;
+		});
+
+		if (groups.length) {
+			groups.unshift(username);
+			return done(null, groups);
+		}
+		done(null, false);
+	});
 }
 
 module.exports = Auth;
